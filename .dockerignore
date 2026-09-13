@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.claude
+data
+test-results
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+README.md
+FEATURES.md
+docs

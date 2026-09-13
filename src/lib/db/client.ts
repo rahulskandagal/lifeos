@@ -10,7 +10,8 @@ import path from "node:path";
 // The rest of the app talks to `src/lib/db/repositories/*`, not directly to
 // this client, so swapping the storage engine only requires changes here.
 
-const DATA_DIR = path.join(process.cwd(), "data");
+// Override with LIFEOS_DATA_DIR when the DB should live on a mounted volume.
+const DATA_DIR = process.env.LIFEOS_DATA_DIR ?? path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "lifeos.db");
 
 declare global {
