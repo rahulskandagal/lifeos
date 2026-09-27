@@ -1,16 +1,61 @@
-# LifeOS — AI Daily Task & Life Management OS
+<div align="center">
 
-LifeOS is a next-generation productivity operating system: tasks, calendar,
-habits, goals, projects, focus sessions, analytics, journaling, and an AI
-assistant that actually reads and acts on your data — not a static to-do
-list. See [FEATURES.md](./FEATURES.md) for the full feature list mapped to
-what's implemented.
+# LifeOS
 
-Built with Next.js 16 (App Router, TypeScript), Tailwind CSS v4, an
-embedded SQLite database (zero external services required), NextAuth v5,
-and a pluggable AI layer that works fully offline-of-the-internet via a
-deterministic rule-based engine, or against a real LLM if you provide an
-API key.
+**An AI-powered daily task & life management OS — tasks, calendar, habits, goals, focus, analytics, journaling, and an assistant that actually acts on your data.**
+
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs&logoColor=fff)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React-19-20232a?logo=react&logoColor=61dafb)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=fff)](https://www.typescriptlang.org)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-v4-06b6d4?logo=tailwindcss&logoColor=fff)](https://tailwindcss.com)
+[![SQLite](https://img.shields.io/badge/SQLite-node%3Asqlite-003b57?logo=sqlite&logoColor=fff)](https://nodejs.org/api/sqlite.html)
+[![Deploy on Railway](https://img.shields.io/badge/Deploy-Railway-0b0d0e?logo=railway&logoColor=fff)](#deploying)
+
+<img src="docs/screenshots/dashboard-dark.png" alt="LifeOS dashboard (dark)" width="900" />
+
+</div>
+
+## Why LifeOS
+
+Most to-do apps are a list. LifeOS is the whole loop: capture in plain
+English, let the planner lay out your day around fixed events, track the
+habits and goals behind the tasks, run focus sessions, and see real
+analytics about how you actually work.
+
+- **Type, don't fill forms** — "Finish DBMS assignment tomorrow 9am high priority #study" becomes a fully-populated task (chrono-node powered parsing).
+- **An assistant that does things** — the chat can create, reschedule, break down, and prioritise tasks, plan your day, and summarise progress — against your real data.
+- **Works with zero API keys** — every AI feature has a deterministic rule-based engine behind it; add an OpenAI-compatible key when you want a real LLM.
+- **Zero infrastructure** — Node's built-in SQLite. `npm run dev` and you're in. No Postgres, no Redis, no auth SaaS.
+- **Everything is real** — analytics, streaks, XP, and insights are computed from your history. Integrations that aren't wired up say "not connected" instead of showing fake data.
+- **Installable PWA** — offline task/habit capture queued via IndexedDB and synced on reconnect; light/dark themes; keyboard-first with `Ctrl/Cmd+K`.
+
+See [FEATURES.md](./FEATURES.md) for an honest map of what's fully
+functional, what's simplified, and what's a placeholder.
+
+## Screenshots
+
+| Tasks (list + Kanban) | Calendar |
+|---|---|
+| ![Tasks](docs/screenshots/tasks-dark.png) | ![Calendar](docs/screenshots/calendar-dark.png) |
+
+| Habits | Goals |
+|---|---|
+| ![Habits](docs/screenshots/habits-dark.png) | ![Goals](docs/screenshots/goals-dark.png) |
+
+| Focus mode | Analytics |
+|---|---|
+| ![Focus](docs/screenshots/focus-dark.png) | ![Analytics](docs/screenshots/analytics-dark.png) |
+
+| Journal | Dashboard (light) |
+|---|---|
+| ![Journal](docs/screenshots/journal-dark.png) | ![Dashboard light](docs/screenshots/dashboard-light.png) |
+
+## Tech stack
+
+Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind CSS v4 ·
+Radix UI · NextAuth v5 (JWT, bcrypt) · Node `node:sqlite` · zustand · SWR ·
+react-hook-form + zod · dnd-kit · Recharts · framer-motion · chrono-node ·
+Playwright (smoke tests)
 
 ## Quick start
 
@@ -60,6 +105,7 @@ Copy `.env.example` to `.env.local` and fill in what you need:
 | `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL` | No | Connect a real OpenAI-compatible LLM. Every AI feature works without these via the built-in rule-based engine (see below). |
 | `WEATHER_API_KEY` | No | Powers the dashboard weather widget (OpenWeatherMap). Without it, the widget shows "not connected" — LifeOS never fabricates weather data. |
 | `DATABASE_URL` | No | Only used if you migrate to PostgreSQL (see above). |
+| `LIFEOS_DATA_DIR` | No | Directory for the SQLite file (default `./data`). The Docker image sets it to `/app/data` — mount your volume there. |
 
 ## AI setup
 
@@ -124,12 +170,52 @@ deployments (see "How data is stored").
 
 ## Deploying
 
-- **Single server / VM / Docker**: works as-is with SQLite — mount a
-  persistent volume for `./data`. Set `NEXTAUTH_SECRET`, `AUTH_TRUST_HOST=true`,
-  and `NEXTAUTH_URL` to your public URL.
-- **Vercel / serverless**: SQLite on ephemeral filesystems won't persist —
-  migrate to PostgreSQL first (see above), then deploy normally; Vercel
-  sets `NEXTAUTH_URL` and trusts its own host automatically.
+LifeOS is a single stateful Node process with an embedded SQLite file, so
+it deploys anywhere you can run a container with a persistent disk. The
+repo ships a multi-stage [`Dockerfile`](./Dockerfile) (Next standalone
+output, non-root, ~150 MB image) and a [`railway.json`](./railway.json).
+
+### Railway (recommended)
+
+```bash
+npm i -g @railway/cli
+railway login
+railway init --name lifeos                    # create the project
+railway add --service lifeos                  # create the service
+railway volume add -m /app/data --service lifeos   # persistent disk for the SQLite file
+railway variables --service lifeos \
+  --set "NEXTAUTH_SECRET=$(openssl rand -base64 32)" \
+  --set "AUTH_TRUST_HOST=true"
+railway up --service lifeos                   # builds the Dockerfile and deploys
+railway domain --service lifeos               # mint a public *.up.railway.app URL
+railway variables --service lifeos --set "NEXTAUTH_URL=https://<your-domain>"
+```
+
+Railway detects `railway.json`, builds the `Dockerfile`, mounts the volume
+at `/app/data` (which is what `LIFEOS_DATA_DIR` points at in the image),
+and health-checks `/login`. Keep it at **one replica** — SQLite is
+single-writer.
+
+### Any Docker host (Fly.io, Render, a VPS, …)
+
+```bash
+docker build -t lifeos .
+docker run -d -p 3000:3000 \
+  -v lifeos-data:/app/data \
+  -e NEXTAUTH_SECRET="$(openssl rand -base64 32)" \
+  -e AUTH_TRUST_HOST=true \
+  -e NEXTAUTH_URL="https://your.domain" \
+  lifeos
+```
+
+The only thing that must survive a redeploy is the `/app/data` volume.
+
+### Vercel / serverless
+
+SQLite on an ephemeral filesystem won't persist and Next's serverless
+functions can't share a writable disk. Migrate to PostgreSQL first (see
+["How data is stored"](#how-data-is-stored)), then deploy normally — Vercel
+sets `NEXTAUTH_URL` and trusts its own host automatically.
 
 ## Project structure
 
